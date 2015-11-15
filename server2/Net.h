@@ -63,7 +63,7 @@ namespace net
 	class Address
 	{
 	public:
-	
+		
 		Address()
 		{
 			address = 0;
@@ -171,19 +171,22 @@ namespace net
 		#endif
 	}
 
+	int sockid = 0;
 	class Socket
 	{
 	public:
 	
 		Socket()
 		{
+			id = sockid++;
 			socket = 0;
 		}
 	
-		~Socket()
-		{
-			closeSocket();
-		}
+		// ~Socket()
+		// {
+		// 	printf("Socket destroyed!\n");
+		// 	closeSocket();
+		// }
 	
 		bool open( unsigned short port )
 		{
@@ -304,9 +307,9 @@ namespace net
 
 			return received_bytes;
 		}
+		int id;
 		
 	private:
-	
 		int socket;
 	};
 }
