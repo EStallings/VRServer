@@ -14,10 +14,12 @@ public:
 	int lastUpdatedIP;
 	int objectID;
 	unsigned char data[OBJ_PACK_LENGTH];
+	int timesUpdated;
 
 	StateObject() {
 		objectID = SOID++;
 		lastUpdatedIP = 0;
+		timesUpdated = 0;
 		lastUpdatedTimestamp = 0;
 	}
 
@@ -32,6 +34,13 @@ public:
 		}
 		lastUpdatedTimestamp = timestamp;
 		lastUpdatedIP = ip;
+		timesUpdated++;
+		printf("Set ip: %d, tu: %d\n", lastUpdatedIP, timesUpdated);
+	}
+
+	bool operator < ( const StateObject & other ) const
+	{
+		return objectID < other.objectID;
 	}
 };
 
@@ -46,47 +55,46 @@ public:
 		return updatedIds;
 	}
 
+	map<int, StateObject> getStateObjects(){
+		return stateObjects;
+	}
+
 	// params: newdata is the packet data, ip is the id of the peer that sent the packet
 	void sendUpdate(unsigned char* newData, int ip) {
-		int timestamp = (int)newData[0];
-		int id = (int)newData[4];
+		int timestamp = (int)newData[1];
+		int id = (int)newData[5];
 		
-		map<int, StateObject>::iterator it = stateObjects.find(id);
-		StateObject stateObject;
-
-		if(it == stateObjects.end()) {
+		if(stateObjects.find(id) == stateObjects.end()) {
 			printf("Object not found in model");
 			return;
 		}
-
-		// Object found. Check timestamp
-		stateObject = it->second;
-		
+		// printf("comparing %d < %d\n", stateObjects[id].lastUpdatedTimestamp, timestamp);
 		//If the update is more recent than the last update...
-		if(stateObject.lastUpdatedTimestamp < timestamp){
-			stateObject.update(timestamp, ip, newData);
-			updatedIds.push_back(stateObject.objectID);
+		if(stateObjects[id].lastUpdatedTimestamp <= timestamp){
+			// printf("Updating Object: id: %d, t: %d, ip:%d\n", id, timestamp, ip);
+			stateObjects[id].update(timestamp, ip, newData);
+			updatedIds.push_back(stateObjects[id].objectID);
+			// printf("   IP after update: %d\n", stateObjects[id].lastUpdatedIP);
 		}
 	}
 
 	// Initialize a global object - something that comes with the scene.
 	void initializeGlobal(unsigned char* newData, int ip) {
 		int timestamp = 0;
-		int id = (int)newData[4];
-
+		int id = (int)newData[5];
 		//Check that the object hasn't already been initialized
-		map<int, StateObject>::iterator it = stateObjects.find(id);
-		if(it != stateObjects.end()){
+		if(stateObjects.find(id) != stateObjects.end()){
 			return; //the object has already been initialized.
 		}
 
 		//Create object and add it to map.
-		StateObject stateObject = StateObject();
-		stateObject.objectID = id;
-		stateObjects[id] = stateObject;
+		stateObjects[id] = StateObject();
+		stateObjects[id].objectID = id;
+
+		// printf("ID / IP / TU after init: %d / %d / %d\n", id, stateObjects[id].lastUpdatedIP, stateObjects[id].timesUpdated);
 		
 		//Need to give the actual data to the object.
-		stateObject.update(timestamp, ip, newData);
+		stateObjects[id].update(timestamp, ip, newData);
 
 		// Since all global objects have same starting conditions, we can just skip updating other users
 	}
@@ -110,17 +118,9 @@ public:
 		return id;
 	}
 
-	// Fills a StateObject* with a pointer to the StateObject specified by <id>
-	StateObject* getObject(StateObject* fill, int id){
-		map<int, StateObject>::iterator it = stateObjects.find(id);
-		if(it == stateObjects.end()) {
-			fill = NULL;
-		}
-		else {
-			// Object found. Check timestamp
-			StateObject stateObject = it->second;
-			fill = &stateObject;
-		}
-		return fill;
+	void resetIdsToUpdate() {
+		vector<int> cleared;
+		updatedIds = cleared;
 	}
+
 };

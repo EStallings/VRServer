@@ -66,6 +66,7 @@ public class client2 : MonoBehaviour {
 	void Kill() {
 		try {
 			// client.Close();
+			Send(Encoding.ASCII.GetBytes("e"));
 			listener.Close();
 		} catch (Exception e) {	print(e.ToString()); }
 	}
@@ -107,13 +108,14 @@ public class client2 : MonoBehaviour {
 						break;
 					case 'k': // k - new ID to old ID callback for non-local initiation
 						print("Recieved ID Callback");
-
+						objectManager.RecieveId(rawResponse);
 						break;
 					case 'm': // m - object update Client-To-Server
 						print("Incorrectly Received Object Update");
 						break;
 					case 'n': // n - object update Server-To-Client
 						print("Recieved Server-Side Object Update");
+						objectManager.RecieveUpdate(rawResponse);
 						break;
 					default:
 						print("Unknown Command For Client: " + command);
@@ -128,7 +130,7 @@ public class client2 : MonoBehaviour {
 		try {
 			// Begin sending the data to the remote device.
 			listener.Send(byteData, byteData.Length, remoteEP);
-			print("Sent " + byteData.Length + " bytes to server.");
+			// print("Sent " + byteData.Length + " bytes to server.");
 			ticksSinceLastSend = 0;
 			return true;
 		} catch (Exception e) {	print(e.ToString()); }

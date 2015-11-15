@@ -11,7 +11,7 @@ class ObjectWrapper {
 	Vector3 lastPos;
 	Quaternion lastRot;
 
-	public int timestamp = 0;
+	public int timestamp = 1;
 
 	private static int posLength = 92;
 	private static int rotLength = 103;
@@ -46,13 +46,18 @@ class ObjectWrapper {
 		}
 	}
 
-	public void LoadFromPacketData(byte[] data, BinaryFormatter bf) {
+	public void LoadFromPacketData(byte[] data, int ts, BinaryFormatter bf) {
+		Debug.Log("LoadFromPacketData!");
 		byte[] posPart = data.SubArray(0, posLength);
 		byte[] rotPart = data.SubArray(posLength, rotLength);
 		Vector3 posD = (Vector3)DeserializeObj(posPart, bf);
 		Quaternion rotD = (Quaternion)DeserializeObj(rotPart, bf);
-
-		// Debug.Log((posD == lastPos) + " and " + (rotD == lastRot));
+		myObj.position = posD;
+		myObj.rotation = rotD;
+		lastPos = posD;
+		lastRot = rotD;
+		timestamp = ts;
+		Debug.Log((posD == lastPos) + " and " + (rotD == lastRot));
 	}
 }
 
@@ -66,6 +71,7 @@ public class ObjectManager : MonoBehaviour {
 	private MemoryStream ms;
 	private BinaryFormatter bf;
 	
+	private int localId = 0;
 
 	Dictionary<int, ObjectWrapper> objectWrappersWithLocalID; // unsynced with server, awaiting a foreign ID
 	Dictionary<int, ObjectWrapper> objectWrappersWithGlobalID;
@@ -104,6 +110,7 @@ public class ObjectManager : MonoBehaviour {
 			ObjectWrapper ow = pair.Value;
 			if(ow.Updated()){
 				//Make packet, add to client to-send list
+				ow.timestamp += 1;
 				client.AddSendPacket("m", ow.timestamp, pair.Key, ow.GetPacketData(bf));
 			}
 		}
@@ -112,20 +119,28 @@ public class ObjectManager : MonoBehaviour {
 			ObjectWrapper ow = pair.Value;
 			if(ow.Updated()){
 				//Make packet, add to client to-send list
+				ow.timestamp += 1;
 				client.AddSendPacket("m", ow.timestamp, pair.Key, ow.GetPacketData(bf));
 			}
 		}
 	}
 
-	void RecieveUpdate(byte[] packet) {
-		
+	public void RecieveUpdate(byte[] packet) {
+		int timestamp = System.BitConverter.ToInt32(packet, 1);
+		int id = System.BitConverter.ToInt32(packet, 5);
+		byte[] subPacket = packet.SubArray(9, packet.Length-9);
+		ObjectWrapper ow = objectWrappersWithGlobalID[id];
+		if(ow != null) ow.LoadFromPacketData(subPacket, timestamp, bf);
 	}
 
-	void RecieveId(byte[] packet) {
+	public void RecieveId(byte[] packet) {
 
 	}
 
-	void AddNewItem(Transform t) {
-
+	public void AddNewItem(Transform t) {
+		int id = localId++;
+		ObjectWrapper ow = new ObjectWrapper(t);
+		objectWrappersWithLocalID.Add(id, ow);
+		client.AddSendPacket("j", 0, id, ow.GetPacketData(bf));
 	}
 }

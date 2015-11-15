@@ -45,33 +45,40 @@ int main( int argc, char * argv[] )
 
 	while ( true )
 	{
-		
+		map<int, StateObject> stateObjects = model.getStateObjects();
 		vector<int> idsToUpdate = model.getUpdatedIds();
 		vector<Address> nextAddresses;
 		
 		for ( int i = 0; i < (int) addresses.size(); ++i ){
-			printf("Sending data to peer %d t=%d\n", i, addresses[i].getTimeout());
 			
-			if(addresses[i].getTimeout() < TIMEOUT_TICKS) {
-				int ip = addresses[i].getAddress();
-				for( int j = 0; j < (int) idsToUpdate.size(); ++j){
-					StateObject stateObject;
-					StateObject* sor = model.getObject(&stateObject, idsToUpdate[j]);
-					if(sor == NULL) continue;
-					if(stateObject.lastUpdatedIP == ip) continue;
-					printf("   Sending Packet...\n");
-					socket.send( addresses[i], stateObject.data, OBJ_PACK_LENGTH);
-				}
-			}
-			else {
+			if(addresses[i].getTimeout() > TIMEOUT_TICKS) {
+				printf("Disconnecting Peer %d\n", i);
 				unsigned char data[] = {'d'};
 				socket.send( addresses[i], data, 1);
 				continue;
 			}
+
+			// printf("Sending data to peer %d t=%d\n", i, addresses[i].getTimeout());
+
+			int ip = addresses[i].getAddress();
+			for( int j = 0; j < (int) idsToUpdate.size(); ++j){
+				int id = idsToUpdate[j];
+
+				if(stateObjects.find(id) != stateObjects.end()) {
+					// Object found. Check timestamp
+					// printf("%d vs %d, tu=%d\n", stateObjects[id].lastUpdatedIP, ip, stateObjects[id].timesUpdated);
+					// if(stateObjects[id].lastUpdatedIP == ip) continue;
+					printf("   Sending Packet...\n");
+					stateObjects[id].data[0] = (unsigned char)'n';
+					socket.send( addresses[i], stateObjects[id].data, OBJ_PACK_LENGTH);
+				}
+			}
+			
 			addresses[i].incTimeout();
 			nextAddresses.push_back(addresses[i]);
 		}
 		addresses = nextAddresses;
+		model.resetIdsToUpdate();
 			
 		while ( true )
 		{
@@ -83,7 +90,7 @@ int main( int argc, char * argv[] )
 				break;
 
 			string message(reinterpret_cast<char*>(buffer));
-			cout << "Msg " << message << endl;
+			// cout << "Msg " << message << endl;
 
 			if(std::find(addresses.begin(), addresses.end(), sender) != addresses.end()) {
 				/* v contains x */
@@ -93,7 +100,6 @@ int main( int argc, char * argv[] )
 						break;
 					}
 				}
-				sender.resetTimeout();
 			} else {
 				/* v does not contain x */
 				newSender = true;
@@ -102,6 +108,7 @@ int main( int argc, char * argv[] )
 			printf( "received packet from %d.%d.%d.%d:%d (%d bytes)\n", sender.getA(), sender.getB(), sender.getC(), sender.getD(), sender.getPort(), bytes_read );
 			int newId, theirId;
 			unsigned char sendBack[255];
+			sender.resetTimeout();
 
 			switch(buffer[0]){
 				case 'a': // a - handshake signal from client
@@ -161,9 +168,6 @@ int main( int argc, char * argv[] )
 					printf("Unknown Command For Server: %c\n", buffer[0]);
 					break;
 			}
-		
-			
-
 
 		}
 		

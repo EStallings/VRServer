@@ -75,12 +75,14 @@ namespace net
 		{
 			this->address = ( a << 24 ) | ( b << 16 ) | ( c << 8 ) | d;
 			this->port = port;
+			this->timeout = 0;
 		}
 	
 		Address( unsigned int address, unsigned short port )
 		{
 			this->address = address;
 			this->port = port;
+			this->timeout = 0;
 		}
 	
 		unsigned int getAddress() const
