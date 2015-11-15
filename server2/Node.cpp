@@ -111,48 +111,16 @@ void doReceiving(Socket socket){
 	}
 }
 
-int main( int argc, char * argv[] )
-{
-	// initialize socket layer
-
-	if ( !initializeSockets() )
-	{
-		printf( "failed to initialize sockets\n" );
-		return 1;
-	}
-	
-	// create socket
-
-	int port = 30000;
-
-	if ( argc == 2 )
-		port = atoi( argv[1] );
-
-	printf( "creating socket on port %d\n", port );
-
-	Socket socket;
-	if ( !socket.open( port ) )
-	{
-		printf( "failed to create socket!\n" );
-		return 1;
-	}
-
-
-	// send and receive packets until the user ctrl-breaks...
-
-	
-	int ticks = 0;
+void doSending(Socket socket){
 	while ( true )
 	{
-		ticks++;
 		clock_t t;
   		t = clock();
-  
   
 		map<int, StateObject> stateObjects = model.getStateObjects();
 		vector<int> idsToUpdate = model.getUpdatedIds();
 		vector<Address> nextAddresses;
-		
+
 		for ( int i = 0; i < (int) addresses.size(); ++i ){
 			
 			if(addresses[i].getTimeout() > TIMEOUT_TICKS) {
@@ -194,6 +162,36 @@ int main( int argc, char * argv[] )
 
 		wait( 0.015f - timePassed );
 	}
+}
+int main( int argc, char * argv[] )
+{
+	// initialize socket layer
+
+	if ( !initializeSockets() )
+	{
+		printf( "failed to initialize sockets\n" );
+		return 1;
+	}
+	
+	// create socket
+
+	int port = 30000;
+
+	if ( argc == 2 )
+		port = atoi( argv[1] );
+
+	printf( "creating socket on port %d\n", port );
+
+	Socket socket;
+	if ( !socket.open( port ) )
+	{
+		printf( "failed to create socket!\n" );
+		return 1;
+	}
+
+
+	// send and receive packets until the user ctrl-breaks...
+	doSending(socket);
 	
 	// shutdown socket layer
 	
