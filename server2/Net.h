@@ -83,47 +83,52 @@ namespace net
 			this->port = port;
 		}
 	
-		unsigned int GetAddress() const
+		unsigned int getAddress() const
 		{
 			return address;
 		}
 	
-		unsigned char GetA() const
+		unsigned char getA() const
 		{
 			return ( unsigned char ) ( address >> 24 );
 		}
 	
-		unsigned char GetB() const
+		unsigned char getB() const
 		{
 			return ( unsigned char ) ( address >> 16 );
 		}
 	
-		unsigned char GetC() const
+		unsigned char getC() const
 		{
 			return ( unsigned char ) ( address >> 8 );
 		}
 	
-		unsigned char GetD() const
+		unsigned char getD() const
 		{
 			return ( unsigned char ) ( address );
 		}
 	
-		unsigned short GetPort() const
+		unsigned short getPort() const
 		{ 
 			return port;
 		}
 
-		unsigned int GetTimeout() const
+		unsigned int getTimeout() const
 		{
 			return timeout;
 		}
 
-		void IncTimeout()
+		void incTimeout()
 		{
 			timeout++;
 		}
 
-		void ResetTimeout()
+		void maxTimeout()
+		{
+			timeout=999999;
+		}
+
+		void resetTimeout()
 		{
 			timeout = 0;
 		}
@@ -147,7 +152,7 @@ namespace net
 
 	// sockets
 
-	inline bool InitializeSockets()
+	inline bool initializeSockets()
 	{
 		#if PLATFORM == PLATFORM_WINDOWS
 	    WSADATA WsaData;
@@ -157,7 +162,7 @@ namespace net
 		#endif
 	}
 
-	inline void ShutdownSockets()
+	inline void shutdownSockets()
 	{
 		#if PLATFORM == PLATFORM_WINDOWS
 		WSACleanup();
@@ -175,12 +180,12 @@ namespace net
 	
 		~Socket()
 		{
-			Close();
+			closeSocket();
 		}
 	
-		bool Open( unsigned short port )
+		bool open( unsigned short port )
 		{
-			assert( !IsOpen() );
+			assert( !isOpen() );
 		
 			// create socket
 
@@ -203,7 +208,7 @@ namespace net
 			if ( bind( socket, (const sockaddr*) &address, sizeof(sockaddr_in) ) < 0 )
 			{
 				printf( "failed to bind socket\n" );
-				Close();
+				closeSocket();
 				return false;
 			}
 
@@ -215,7 +220,7 @@ namespace net
 				if ( fcntl( socket, F_SETFL, O_NONBLOCK, nonBlocking ) == -1 )
 				{
 					printf( "failed to set non-blocking socket\n" );
-					Close();
+					closeSocket();
 					return false;
 				}
 			
@@ -225,7 +230,7 @@ namespace net
 				if ( ioctlsocket( socket, FIONBIO, &nonBlocking ) != 0 )
 				{
 					printf( "failed to set non-blocking socket\n" );
-					Close();
+					closeSocket();
 					return false;
 				}
 
@@ -234,7 +239,7 @@ namespace net
 			return true;
 		}
 	
-		void Close()
+		void closeSocket()
 		{
 			if ( socket != 0 )
 			{
@@ -247,12 +252,12 @@ namespace net
 			}
 		}
 	
-		bool IsOpen() const
+		bool isOpen() const
 		{
 			return socket != 0;
 		}
 	
-		bool Send( const Address & destination, const void * data, int size )
+		bool send( const Address & destination, const void * data, int size )
 		{
 			assert( data );
 			assert( size > 0 );
@@ -262,15 +267,15 @@ namespace net
 		
 			sockaddr_in address;
 			address.sin_family = AF_INET;
-			address.sin_addr.s_addr = htonl( destination.GetAddress() );
-			address.sin_port = htons( (unsigned short) destination.GetPort() );
+			address.sin_addr.s_addr = htonl( destination.getAddress() );
+			address.sin_port = htons( (unsigned short) destination.getPort() );
 
 			int sent_bytes = sendto( socket, (const char*)data, size, 0, (sockaddr*)&address, sizeof(sockaddr_in) );
 
 			return sent_bytes == size;
 		}
 	
-		int Receive( Address & sender, void * data, int size )
+		int receive( Address & sender, void * data, int size )
 		{
 			assert( data );
 			assert( size > 0 );

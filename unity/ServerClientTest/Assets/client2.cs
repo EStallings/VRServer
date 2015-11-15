@@ -5,6 +5,7 @@ using System.Threading;
 using System.Text;
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 
 // State object for receiving data from remote device.
 public class StateObject {
@@ -21,14 +22,12 @@ public class StateObject {
 public class client2 : MonoBehaviour {
 	// Server IP
 	public string hostIP = "127.0.0.1";
-	public string handshakeOutSignal = "init_client";
-	public string handshakeInSignal = "init_server";
-	public string pingSignal = "ping";
-	public string timeoutSignal = "disconnected_timeout";
 
 	// The port number for the remote device.
 	public int targetPort = 30000;
 	public int listenPort = 3450;
+
+	public ObjectManager objectManager;
 
 	// Modes
 	public bool mode_strict_incoming_IP = true; //Ensure incoming packets ONLY come from server
@@ -36,16 +35,13 @@ public class client2 : MonoBehaviour {
 	public bool mode_manual_ping = true;
 	public int ping_after_ticks = 100;
 
-	public bool sig_handshake0 = false; //We've notified the server
-	public bool sig_handshake1 = false; //Recieved confirmation message
-	
-	public bool sig_incomingWaiting = false; //we have a new message waiting for processing
-	public bool sig_outgoingWaiting = false; //we have a message waiting to go out
+	public bool handshakeComplete = false;
 
 	// The response from the remote device.
 	public string response = String.Empty;
 	public byte[] rawResponse;
 
+	public Queue<byte[]> outgoingPackets = new Queue<byte[]>();
 	public int ticksSinceLastSend = 0;
 
 	UdpClient listener = null;
@@ -79,77 +75,96 @@ public class client2 : MonoBehaviour {
 			if(listener.Available > 0){
 				rawResponse = listener.Receive(ref groupEP);
 				response = Encoding.ASCII.GetString(rawResponse, 0, rawResponse.Length);
-				if(rawResponse.Length > 0){
-					sig_incomingWaiting = true;
+				if(rawResponse.Length < 1){
+					return;
+				}
+				char command = Convert.ToChar(rawResponse[0]);
+
+				switch(command){	
+					case 'a': // a - handshake signal from client
+						print("Incorrectly Recieved Handshake Signal From Client");
+						break;
+					case 'b': // b - handshake signal from server
+						print("Recieved Server-Side Handshake Signal");
+						handshakeComplete = true;
+						break;
+					case 'c': // c - ping signal, no data
+						print("Incorrectly Pinged");
+						break;
+					case 'd': // d - disconnected by server due to timeout
+						print("Recieved Server-Side Disconnect Signal");
+						handshakeComplete = false;
+						Send(Encoding.ASCII.GetBytes("a"));
+						break;
+					case 'e': // e - disconnected from server
+						print("Incorrectly Recieved Client Disconnected");
+						break;
+					case 'i': // i - initialize global object
+						print("Incorrectly Recieved Initialize Global Object");
+						break;
+					case 'j': // j - initialize non-global object
+						print("Incorrectly Recieved Initialize Local Object");
+						break;
+					case 'k': // k - new ID to old ID callback for non-local initiation
+						print("Recieved ID Callback");
+
+						break;
+					case 'm': // m - object update Client-To-Server
+						print("Incorrectly Received Object Update");
+						break;
+					case 'n': // n - object update Server-To-Client
+						print("Recieved Server-Side Object Update");
+						break;
+					default:
+						print("Unknown Command For Client: " + command);
+						break;
 				}
 			}
 
 		} catch (Exception e) {	print(e.ToString()); }	
 	}
 
-	bool Send(String data) {
+	bool Send(byte[] byteData) {
 		try {
-			// Convert the string data to byte data using ASCII encoding.
-			byte[] byteData = Encoding.ASCII.GetBytes(data);
-
 			// Begin sending the data to the remote device.
 			listener.Send(byteData, byteData.Length, remoteEP);
 			print("Sent " + byteData.Length + " bytes to server.");
-			sig_outgoingWaiting = false;
 			ticksSinceLastSend = 0;
 			return true;
 		} catch (Exception e) {	print(e.ToString()); }
 		return false;
 	}
 
-	void ProcessIncoming() {
-		if((groupEP.Address.ToString() != hostIP && mode_strict_incoming_IP) || (groupEP.Port != targetPort && mode_strict_incoming_PORT)) {
-			print("ERROR");
-			return;
-		}
-		if(!sig_handshake1){
-			if(response.Length == handshakeInSignal.Length+1 && String.Compare(response.Substring(0, handshakeInSignal.Length), handshakeInSignal) == 0){
-				print("HANDSHAKE WITH SERVER COMPLETED");
-				sig_handshake1 = true;
-			}
-		}
-		if(response.Length == timeoutSignal.Length+1 && String.Compare(response.Substring(0, timeoutSignal.Length), timeoutSignal) == 0){
-			print("DISCONNECTED FROM SERVER, RECONNECTING...");
-			sig_handshake1 = false;
-			sig_handshake0 = false;
-		}
-		print("Received a broadcast from " + groupEP.Address.ToString() + " port " + groupEP.Port + " msg: " + response);
+	public void AddSendPacket(string prefix, int timestamp, int id, byte[] data){
+		byte[] b_pr = Encoding.ASCII.GetBytes(prefix);
+		byte[] b_ts = BitConverter.GetBytes(timestamp);
+		byte[] b_id = BitConverter.GetBytes(id);
 
-		sig_incomingWaiting = false;
-		response = String.Empty;
-		rawResponse = null;
+		List<byte> list = new List<byte>();
+		list.AddRange(b_pr);
+		list.AddRange(b_ts);
+		list.AddRange(b_id);
+		list.AddRange(data);
+		byte[] packet = list.ToArray();
+		outgoingPackets.Enqueue(packet);
 	}
-
-	void ProcessOutgoing() {
-		print("Processing Outgoing");
-	}
-
 
 	void Start() {
 		Connect();
+		Send(Encoding.ASCII.GetBytes("a"));
 	}
 
 	void Update() {
 		ticksSinceLastSend++;
-		if(sig_incomingWaiting) {
-			ProcessIncoming();
-		}
+		
 		Receive();
 
+		while(outgoingPackets.Count > 0){
+			Send(outgoingPackets.Dequeue());
+		}
 		
-		if(!sig_handshake0){
-			sig_handshake0 = Send(handshakeOutSignal);
-		}
-		else if(sig_outgoingWaiting) {
-			ProcessOutgoing();
-		}
-		else if(ticksSinceLastSend > ping_after_ticks && mode_manual_ping){
-			Send(pingSignal);
+		if(ticksSinceLastSend > ping_after_ticks && mode_manual_ping){
+			Send(Encoding.ASCII.GetBytes("c"));
 		}
 	}
 }

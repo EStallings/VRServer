@@ -46,49 +46,68 @@ public:
 		return updatedIds;
 	}
 
-	//Returns true if we need to resend the object to all listeners
 	// params: newdata is the packet data, ip is the id of the peer that sent the packet
 	void sendUpdate(unsigned char* newData, int ip) {
-
-		//If timestamp is negative, then we have a new, NON-SYSTEM-WIDE object on our hands!
 		int timestamp = (int)newData[0];
 		int id = (int)newData[4];
-		bool updateObject = false;
+		
 		map<int, StateObject>::iterator it = stateObjects.find(id);
 		StateObject stateObject;
 
-		//Whether or not we need to ping back to client the global ID
-		bool needToInform = false;
-		
 		if(it == stateObjects.end()) {
-			// Does not exist in map. Add it?
-			// Note and MASSIVE caveat:
-			// In a full-sized system, we would need to ping the server to get an ID back to use for an object.
-			// However, we'll just assume that all clients have the same local ids, and use the ID they provide us with.
-			// TODO: Make this FLEXIBLE.
-			stateObject = StateObject();
-			if(timestamp < 0){
-				//This is a new object, and we need to send back a global id.
-				id = stateObject.objectID;
-			}else {
-				//Trust that this is a global object - something that comes with the scene.
-				stateObject.objectID = id;
-			}
-			stateObjects[id] = stateObject;
-			updateObject = true;
-		}
-		else {
-			// Object found. Check timestamp
-			stateObject = it->second;
-			if(stateObject.lastUpdatedTimestamp < timestamp)
-				updateObject = true;
+			printf("Object not found in model");
+			return;
 		}
 
-		if(updateObject){
-			//If we have to, update the object.
+		// Object found. Check timestamp
+		stateObject = it->second;
+		
+		//If the update is more recent than the last update...
+		if(stateObject.lastUpdatedTimestamp < timestamp){
 			stateObject.update(timestamp, ip, newData);
 			updatedIds.push_back(stateObject.objectID);
 		}
+	}
+
+	// Initialize a global object - something that comes with the scene.
+	void initializeGlobal(unsigned char* newData, int ip) {
+		int timestamp = 0;
+		int id = (int)newData[4];
+
+		//Check that the object hasn't already been initialized
+		map<int, StateObject>::iterator it = stateObjects.find(id);
+		if(it != stateObjects.end()){
+			return; //the object has already been initialized.
+		}
+
+		//Create object and add it to map.
+		StateObject stateObject = StateObject();
+		stateObject.objectID = id;
+		stateObjects[id] = stateObject;
+		
+		//Need to give the actual data to the object.
+		stateObject.update(timestamp, ip, newData);
+
+		// Since all global objects have same starting conditions, we can just skip updating other users
+	}
+
+	// Initialize a local object - something that one of the clients made that needs to be initialized on other clients
+	// returns new, global ID to use for object.
+	bool initializeLocal(unsigned char* newData, int ip) {
+		int timestamp = 0;
+
+		//Create object and add it to map.
+		StateObject stateObject = StateObject();
+		int id = stateObject.objectID;
+		stateObjects[id] = stateObject;
+
+		//Give data to object.
+		stateObject.update(timestamp, ip, newData);
+
+		//We do need to update because other users don't have this object
+		updatedIds.push_back(id);
+		
+		return id;
 	}
 
 	// Fills a StateObject* with a pointer to the StateObject specified by <id>

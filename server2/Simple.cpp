@@ -18,7 +18,7 @@ int main( int argc, char * argv[] )
 {
 	// initialize socket layer
 
-	if ( !InitializeSockets() )
+	if ( !initializeSockets() )
 	{
 		printf( "failed to initialize sockets\n" );
 		return 1;
@@ -32,7 +32,7 @@ int main( int argc, char * argv[] )
 
 	Socket socket;
 
-	if ( !socket.Open( port ) )
+	if ( !socket.open( port ) )
 	{
 		printf( "failed to create socket!\n" );
 		return 1;
@@ -44,18 +44,18 @@ int main( int argc, char * argv[] )
 	{
 		const char data[] = "hello world!";
 
-		socket.Send( Address(127,0,0,1,port), data, sizeof(data) );
+		socket.send( Address(127,0,0,1,port), data, sizeof(data) );
 			
 		while ( true )
 		{
 			Address sender;
 			unsigned char buffer[256];
-			int bytes_read = socket.Receive( sender, buffer, sizeof( buffer ) );
+			int bytes_read = socket.receive( sender, buffer, sizeof( buffer ) );
 			if ( !bytes_read )
 				break;
 			printf( "received packet from %d.%d.%d.%d:%d (%d bytes)\n", 
-				sender.GetA(), sender.GetB(), sender.GetC(), sender.GetD(), 
-				sender.GetPort(), bytes_read );
+				sender.getA(), sender.getB(), sender.getC(), sender.getD(), 
+				sender.getPort(), bytes_read );
 		}
 		
 		wait( 0.25f );
@@ -63,7 +63,7 @@ int main( int argc, char * argv[] )
 	
 	// shutdown socket layer
 	
-	ShutdownSockets();
+	shutdownSockets();
 
 	return 0;
 }

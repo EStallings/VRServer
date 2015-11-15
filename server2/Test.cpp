@@ -29,12 +29,12 @@ void test_address()
 	printf( "defaults\n" );
 	{
 		Address address;
-		check( address.GetA() == 0 );
-		check( address.GetB() == 0 );
-		check( address.GetC() == 0 );
-		check( address.GetD() == 0 );
-		check( address.GetPort() == 0 );
-		check( address.GetAddress() == 0 );
+		check( address.getA() == 0 );
+		check( address.getB() == 0 );
+		check( address.getC() == 0 );
+		check( address.getD() == 0 );
+		check( address.getPort() == 0 );
+		check( address.getAddress() == 0 );
 	}
 	
 	printf( "a,b,c,d,port\n" );
@@ -45,11 +45,11 @@ void test_address()
 		const unsigned char d = 12;
 		const unsigned short port = 10000;
 		Address address( a, b, c, d, port );
-		check( a == address.GetA() );
-		check( b == address.GetB() );
-		check( c == address.GetC() );
-		check( d == address.GetD() );
-		check( port == address.GetPort() );
+		check( a == address.getA() );
+		check( b == address.getB() );
+		check( c == address.getC() );
+		check( d == address.getD() );
+		check( port == address.getPort() );
 	}
 
 	printf( "equality/inequality\n");
@@ -71,42 +71,42 @@ void test_socket()
 	printf( "open/close\n" );
 	{
 		Socket socket;
-		check( !socket.IsOpen() );
-		check( socket.Open( 30000 ) );
-		check( socket.IsOpen() );
-		socket.Close();
-		check( !socket.IsOpen() );
-		check( socket.Open( 30000 ) );
-		check( socket.IsOpen() );
+		check( !socket.isOpen() );
+		check( socket.open( 30000 ) );
+		check( socket.isOpen() );
+		socket.closeSocket();
+		check( !socket.isOpen() );
+		check( socket.open( 30000 ) );
+		check( socket.isOpen() );
 	}
 	
 	printf( "fails on same port\n" );
 	{
 		Socket a,b;
-		check( a.Open( 30000 ) );
-		check( !b.Open( 30000 ) );
-		check( a.IsOpen() );
-		check( !b.IsOpen() );
+		check( a.open( 30000 ) );
+		check( !b.open( 30000 ) );
+		check( a.isOpen() );
+		check( !b.isOpen() );
 	}
 	
 	printf( "send and receive packets\n" );
 	{
 		Socket a,b;
-		check( a.Open( 30000 ) );
-		check( b.Open( 30001 ) );
+		check( a.open( 30000 ) );
+		check( b.open( 30001 ) );
 		const char packet[] = "packet data";
 		bool a_received_packet = false;
 		bool b_received_packet = false;
 		while ( !a_received_packet && !b_received_packet )
 		{
-			check( a.Send( Address(127,0,0,1,30000), packet, sizeof(packet) ) );
-			check( b.Send( Address(127,0,0,1,30000), packet, sizeof(packet) ) );
+			check( a.send( Address(127,0,0,1,30000), packet, sizeof(packet) ) );
+			check( b.send( Address(127,0,0,1,30000), packet, sizeof(packet) ) );
 			
 			while ( true )
 			{
 				Address sender;
 				char buffer[256];
-				int bytes_read = a.Receive( sender, buffer, sizeof(buffer) );
+				int bytes_read = a.receive( sender, buffer, sizeof(buffer) );
 				if ( bytes_read == 0 )
 					break;
 				if ( bytes_read == sizeof(packet) && strcmp(buffer,packet) == 0 )
@@ -117,7 +117,7 @@ void test_socket()
 			{
 				Address sender;
 				char buffer[256];
-				int bytes_read = b.Receive( sender, buffer, sizeof(buffer) );
+				int bytes_read = b.receive( sender, buffer, sizeof(buffer) );
 				if ( bytes_read == 0 )
 					break;
 				if ( bytes_read == sizeof(packet) && strcmp(buffer,packet) == 0 )
@@ -138,7 +138,7 @@ void tests()
 
 int main( int argc, char * argv[] )
 {
-	if ( !InitializeSockets() )
+	if ( !initializeSockets() )
 	{
 		printf( "failed to initialize sockets\n" );
 		return 1;
@@ -146,7 +146,7 @@ int main( int argc, char * argv[] )
 	
 	tests();
 	
-	ShutdownSockets();
+	shutdownSockets();
 
 	return 0;
 }

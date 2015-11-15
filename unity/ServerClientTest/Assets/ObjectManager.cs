@@ -11,6 +11,8 @@ class ObjectWrapper {
 	Vector3 lastPos;
 	Quaternion lastRot;
 
+	public int timestamp = 0;
+
 	private static int posLength = 92;
 	private static int rotLength = 103;
 
@@ -55,7 +57,7 @@ class ObjectWrapper {
 }
 
 public class ObjectManager : MonoBehaviour {
-	public Transform[] watchObjects;
+	public Transform[] globalObjects;
 	public client2 client;
 
 	public int masterLocalID = 0;
@@ -66,7 +68,7 @@ public class ObjectManager : MonoBehaviour {
 	
 
 	Dictionary<int, ObjectWrapper> objectWrappersWithLocalID; // unsynced with server, awaiting a foreign ID
-	Dictionary<int, ObjectWrapper> objectWrappersWithForeignID;
+	Dictionary<int, ObjectWrapper> objectWrappersWithGlobalID;
 
 	// Use this for initialization
 	void Start () {
@@ -85,31 +87,41 @@ public class ObjectManager : MonoBehaviour {
 
 		// Set up maps for object wrappers
 		objectWrappersWithLocalID = new Dictionary<int, ObjectWrapper>();
-		objectWrappersWithForeignID = new Dictionary<int, ObjectWrapper>();
+		objectWrappersWithGlobalID = new Dictionary<int, ObjectWrapper>();
 
 		// Process the statically-assigned objects.
-		for(int i = 0; i < watchObjects.Length; i++) {
-			objectWrappersWithLocalID.Add(i, new ObjectWrapper(watchObjects[i]));
+		for(int i = 0; i < globalObjects.Length; i++) {
+			print("Adding global object: " + i);
+			ObjectWrapper ow = new ObjectWrapper(globalObjects[i]);
+			objectWrappersWithGlobalID.Add(i, ow);
+			client.AddSendPacket("i", 0, i, ow.GetPacketData(bf));
 		}
 	}
 	
 	// Update is called once per frame
 	void Update () {
-		foreach(ObjectWrapper ow in objectWrappersWithLocalID) {
+		foreach(KeyValuePair<int, ObjectWrapper> pair in objectWrappersWithLocalID) {
+			ObjectWrapper ow = pair.Value;
 			if(ow.Updated()){
 				//Make packet, add to client to-send list
+				client.AddSendPacket("m", ow.timestamp, pair.Key, ow.GetPacketData(bf));
 			}
-			byte[] data = ow.GetPacketData(bf);
-			print("Object Serialized Size: " + data.Length);
-			ow.LoadFromPacketData(data, bf);
+		}
+
+		foreach(KeyValuePair<int, ObjectWrapper> pair in objectWrappersWithGlobalID) {
+			ObjectWrapper ow = pair.Value;
+			if(ow.Updated()){
+				//Make packet, add to client to-send list
+				client.AddSendPacket("m", ow.timestamp, pair.Key, ow.GetPacketData(bf));
+			}
 		}
 	}
 
-	void RecieveUpdate(byte[] packet, int objId) {
-
+	void RecieveUpdate(byte[] packet) {
+		
 	}
 
-	void RecieveId(int localId, int foreignId) {
+	void RecieveId(byte[] packet) {
 
 	}
 
