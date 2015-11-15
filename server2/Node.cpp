@@ -2,6 +2,7 @@
 #include <fstream>
 #include <string>
 #include <vector>
+#include <time.h>
 
 #include "Net.h"
 #include "Model.h"
@@ -9,7 +10,7 @@
 using namespace std;
 using namespace net;
 
-#define TIMEOUT_TICKS 1000
+#define TIMEOUT_TICKS 100000000
 
 int main( int argc, char * argv[] )
 {
@@ -42,9 +43,16 @@ int main( int argc, char * argv[] )
 	// send and receive packets until the user ctrl-breaks...
 
 	Model model = Model();
-
+	int packetsSent = 0;
+	int packetsRecv = 0;
+	int ticks = 0;
 	while ( true )
 	{
+		ticks++;
+		clock_t t;
+  		t = clock();
+  
+  
 		map<int, StateObject> stateObjects = model.getStateObjects();
 		vector<int> idsToUpdate = model.getUpdatedIds();
 		vector<Address> nextAddresses;
@@ -67,8 +75,9 @@ int main( int argc, char * argv[] )
 				if(stateObjects.find(id) != stateObjects.end()) {
 					// Object found. Check timestamp
 					// printf("%d vs %d, tu=%d\n", stateObjects[id].lastUpdatedIP, ip, stateObjects[id].timesUpdated);
-					// if(stateObjects[id].lastUpdatedIP == ip) continue;
-					printf("   Sending Packet...\n");
+					if(stateObjects[id].lastUpdatedIP == ip) continue;
+					// printf("   Sending Packet...\n");
+					packetsSent++;
 					stateObjects[id].data[0] = (unsigned char)'n';
 					socket.send( addresses[i], stateObjects[id].data, OBJ_PACK_LENGTH);
 				}
@@ -105,14 +114,14 @@ int main( int argc, char * argv[] )
 				newSender = true;
 			}
 			
-			printf( "received packet from %d.%d.%d.%d:%d (%d bytes)\n", sender.getA(), sender.getB(), sender.getC(), sender.getD(), sender.getPort(), bytes_read );
+			// printf( "received packet from %d.%d.%d.%d:%d (%d bytes)\n", sender.getA(), sender.getB(), sender.getC(), sender.getD(), sender.getPort(), bytes_read );
 			int newId, theirId;
 			unsigned char sendBack[255];
 			sender.resetTimeout();
 
 			switch(buffer[0]){
 				case 'a': // a - handshake signal from client
-					printf("Recieved Handshake Signal From Client\n");
+					// printf("Recieved Handshake Signal From Client\n");
 					if(newSender) {
 						cout << "Discovered peer! " << message << "\n";
 						addresses.push_back(sender);
@@ -121,16 +130,16 @@ int main( int argc, char * argv[] )
 					}
 					break;
 				case 'b': // b - handshake signal from server
-					printf("Incorrectly Recieved Server-Side Handshake Signal\n");
+					// printf("Incorrectly Recieved Server-Side Handshake Signal\n");
 					break;
 				case 'c': // c - ping signal, no data
-					printf("Pinged by peer!\n");
+					// printf("Pinged by peer!\n");
 					break;
 				case 'd': // d - disconnected by server due to timeout
-					printf("Incorrectly Recieved Server-Side Disconnect Signal\n");
+					// printf("Incorrectly Recieved Server-Side Disconnect Signal\n");
 					break;
 				case 'e': // e - disconnected from server
-					printf("Client Disconnected\n");
+					// printf("Client Disconnected\n");
 					sender.maxTimeout();
 					break;
 				case 'i': // i - initialize global object
@@ -155,23 +164,28 @@ int main( int argc, char * argv[] )
 					socket.send(sender, sendBack, sizeof(sendBack));
 					break;
 				case 'k': // k - new ID to old ID callback for non-local initiation
-					printf("Incorrectly Recieved ID Callback\n");
+					// printf("Incorrectly Recieved ID Callback\n");
 					break;
 				case 'm': // m - object update Client-To-Server
-					printf("Object Update\n");
+					// printf("Object Update\n");
+					packetsRecv++;
 					model.sendUpdate(buffer, sender.getAddress());
 					break;
 				case 'n': // n - object update Server-To-Client
-					printf("Incorrectly Recieved Server-Side Object Update\n");
+					// printf("Incorrectly Recieved Server-Side Object Update\n");
 					break;
 				default:
-					printf("Unknown Command For Server: %c\n", buffer[0]);
+					// printf("Unknown Command For Server: %c\n", buffer[0]);
 					break;
 			}
 
 		}
-		
-		wait( 1.0f );
+		t = clock() - t;
+		float timePassed = ((float)t)/CLOCKS_PER_SEC;
+		printf("Packets: S:%d\t\tR:%d\n", packetsSent, packetsRecv);
+  		// printf ("(%f seconds).\n",timePassed);
+
+		wait( 0.015f - timePassed );
 	}
 	
 	// shutdown socket layer

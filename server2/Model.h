@@ -35,7 +35,7 @@ public:
 		lastUpdatedTimestamp = timestamp;
 		lastUpdatedIP = ip;
 		timesUpdated++;
-		printf("Set ip: %d, tu: %d\n", lastUpdatedIP, timesUpdated);
+		// printf("Set ip: %d, tu: %d\n", lastUpdatedIP, timesUpdated);
 	}
 
 	bool operator < ( const StateObject & other ) const
@@ -70,12 +70,13 @@ public:
 		}
 		// printf("comparing %d < %d\n", stateObjects[id].lastUpdatedTimestamp, timestamp);
 		//If the update is more recent than the last update...
-		if(stateObjects[id].lastUpdatedTimestamp <= timestamp){
+		// if(stateObjects[id].lastUpdatedTimestamp <= timestamp){
 			// printf("Updating Object: id: %d, t: %d, ip:%d\n", id, timestamp, ip);
 			stateObjects[id].update(timestamp, ip, newData);
-			updatedIds.push_back(stateObjects[id].objectID);
+			if(std::find(updatedIds.begin(), updatedIds.end(), stateObjects[id].objectID) == updatedIds.end())
+				updatedIds.push_back(stateObjects[id].objectID);
 			// printf("   IP after update: %d\n", stateObjects[id].lastUpdatedIP);
-		}
+		// }
 	}
 
 	// Initialize a global object - something that comes with the scene.
@@ -110,10 +111,12 @@ public:
 		stateObjects[id] = stateObject;
 
 		//Give data to object.
+		if(std::find(updatedIds.begin(), updatedIds.end(), stateObjects[id].objectID) == updatedIds.end())
 		stateObject.update(timestamp, ip, newData);
 
 		//We do need to update because other users don't have this object
-		updatedIds.push_back(id);
+		if(std::find(updatedIds.begin(), updatedIds.end(), stateObjects[id].objectID) == updatedIds.end())
+			updatedIds.push_back(id);
 		
 		return id;
 	}

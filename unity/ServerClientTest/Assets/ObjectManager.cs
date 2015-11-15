@@ -47,7 +47,7 @@ class ObjectWrapper {
 	}
 
 	public void LoadFromPacketData(byte[] data, int ts, BinaryFormatter bf) {
-		Debug.Log("LoadFromPacketData!");
+		// Debug.Log("LoadFromPacketData!");
 		byte[] posPart = data.SubArray(0, posLength);
 		byte[] rotPart = data.SubArray(posLength, rotLength);
 		Vector3 posD = (Vector3)DeserializeObj(posPart, bf);
@@ -57,7 +57,9 @@ class ObjectWrapper {
 		lastPos = posD;
 		lastRot = rotD;
 		timestamp = ts;
-		Debug.Log((posD == lastPos) + " and " + (rotD == lastRot));
+		// Debug.Log("Const");
+		Debug.Log(posD.x);
+		// Debug.Log((posD == lastPos) + " and " + (rotD == lastRot));
 	}
 }
 
@@ -97,7 +99,7 @@ public class ObjectManager : MonoBehaviour {
 
 		// Process the statically-assigned objects.
 		for(int i = 0; i < globalObjects.Length; i++) {
-			print("Adding global object: " + i);
+			// print("Adding global object: " + i);
 			ObjectWrapper ow = new ObjectWrapper(globalObjects[i]);
 			objectWrappersWithGlobalID.Add(i, ow);
 			client.AddSendPacket("i", 0, i, ow.GetPacketData(bf));
@@ -131,6 +133,7 @@ public class ObjectManager : MonoBehaviour {
 		byte[] subPacket = packet.SubArray(9, packet.Length-9);
 		ObjectWrapper ow = objectWrappersWithGlobalID[id];
 		if(ow != null) ow.LoadFromPacketData(subPacket, timestamp, bf);
+		client.packetsProcessed++;
 	}
 
 	public void RecieveId(byte[] packet) {

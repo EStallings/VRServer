@@ -44,6 +44,9 @@ public class client2 : MonoBehaviour {
 	public Queue<byte[]> outgoingPackets = new Queue<byte[]>();
 	public int ticksSinceLastSend = 0;
 
+	public int packetsRecieved = 0;
+	public int packetsProcessed = 0;
+
 	UdpClient listener = null;
 	IPEndPoint groupEP = null;
 	IPEndPoint remoteEP = null;
@@ -73,9 +76,11 @@ public class client2 : MonoBehaviour {
 
 	void Receive() {
 		try {
-			if(listener.Available > 0){
+			// Debug.Log(listener.Available + " Packets Waiting");
+			while(listener.Available > 0){
 				rawResponse = listener.Receive(ref groupEP);
 				response = Encoding.ASCII.GetString(rawResponse, 0, rawResponse.Length);
+
 				if(rawResponse.Length < 1){
 					return;
 				}
@@ -83,14 +88,14 @@ public class client2 : MonoBehaviour {
 
 				switch(command){	
 					case 'a': // a - handshake signal from client
-						print("Incorrectly Recieved Handshake Signal From Client");
+						// print("Incorrectly Recieved Handshake Signal From Client");
 						break;
 					case 'b': // b - handshake signal from server
 						print("Recieved Server-Side Handshake Signal");
 						handshakeComplete = true;
 						break;
 					case 'c': // c - ping signal, no data
-						print("Incorrectly Pinged");
+						// print("Incorrectly Pinged");
 						break;
 					case 'd': // d - disconnected by server due to timeout
 						print("Recieved Server-Side Disconnect Signal");
@@ -98,27 +103,28 @@ public class client2 : MonoBehaviour {
 						Send(Encoding.ASCII.GetBytes("a"));
 						break;
 					case 'e': // e - disconnected from server
-						print("Incorrectly Recieved Client Disconnected");
+						// print("Incorrectly Recieved Client Disconnected");
 						break;
 					case 'i': // i - initialize global object
-						print("Incorrectly Recieved Initialize Global Object");
+						// print("Incorrectly Recieved Initialize Global Object");
 						break;
 					case 'j': // j - initialize non-global object
-						print("Incorrectly Recieved Initialize Local Object");
+						// print("Incorrectly Recieved Initialize Local Object");
 						break;
 					case 'k': // k - new ID to old ID callback for non-local initiation
 						print("Recieved ID Callback");
 						objectManager.RecieveId(rawResponse);
 						break;
 					case 'm': // m - object update Client-To-Server
-						print("Incorrectly Received Object Update");
+						// print("Incorrectly Received Object Update");
 						break;
 					case 'n': // n - object update Server-To-Client
-						print("Recieved Server-Side Object Update");
+						// print("Recieved Server-Side Object Update");
+						packetsRecieved++;
 						objectManager.RecieveUpdate(rawResponse);
 						break;
 					default:
-						print("Unknown Command For Client: " + command);
+						// print("Unknown Command For Client: " + command);
 						break;
 				}
 			}
@@ -157,6 +163,7 @@ public class client2 : MonoBehaviour {
 	}
 
 	void Update() {
+		// Debug.Log("Tick");
 		ticksSinceLastSend++;
 		
 		Receive();
