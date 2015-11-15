@@ -46,6 +46,8 @@ public class client2 : MonoBehaviour {
 
 	public int packetsRecieved = 0;
 	public int packetsProcessed = 0;
+	public int packetsPrepared = 0;
+	public int packetsSent = 0;
 
 	UdpClient listener = null;
 	IPEndPoint groupEP = null;
@@ -138,6 +140,7 @@ public class client2 : MonoBehaviour {
 			listener.Send(byteData, byteData.Length, remoteEP);
 			// print("Sent " + byteData.Length + " bytes to server.");
 			ticksSinceLastSend = 0;
+			packetsSent++;
 			return true;
 		} catch (Exception e) {	print(e.ToString()); }
 		return false;
@@ -155,6 +158,7 @@ public class client2 : MonoBehaviour {
 		list.AddRange(data);
 		byte[] packet = list.ToArray();
 		outgoingPackets.Enqueue(packet);
+		packetsPrepared++;
 	}
 
 	void Start() {

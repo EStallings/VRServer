@@ -167,7 +167,7 @@ int main( int argc, char * argv[] )
 					// printf("Incorrectly Recieved ID Callback\n");
 					break;
 				case 'm': // m - object update Client-To-Server
-					// printf("Object Update\n");
+					printf("Object Update\n");
 					packetsRecv++;
 					model.sendUpdate(buffer, sender.getAddress());
 					break;
@@ -182,7 +182,7 @@ int main( int argc, char * argv[] )
 		}
 		t = clock() - t;
 		float timePassed = ((float)t)/CLOCKS_PER_SEC;
-		printf("Packets: S:%d\t\tR:%d\n", packetsSent, packetsRecv);
+		// printf("Packets: S:%d\t\tR:%d\n", packetsSent, packetsRecv);
   		// printf ("(%f seconds).\n",timePassed);
 
 		wait( 0.015f - timePassed );
