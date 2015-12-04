@@ -1,20 +1,14 @@
 # makefile for macosx
 
-flags = -Wall -DDEBUG # -O3
+flags = -Wall -DDEBUG # -O3 
 
 % : %.cpp Net.h Model.h
-	g++ $< -o $@ ${flags}
+	clang++ -std=c++11 $< -o $@ ${flags}
 
-all : Test Simple Node
+all : Server
 
-test : Test
-	./Test
-
-node : Node
-	./Node
-
-simple : Simple
-	./Simple
+server : Server
+	./Server
 
 clean:
-	rm -f Test Node Simple
+	rm -f Server

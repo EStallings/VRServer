@@ -1,8 +1,21 @@
-#include <iostream>
-#include <fstream>
+/*
+	Standalone server application for UDP networking with Unity for social VR.
+
+	Does not verify any game state. Simply stores and repeats information across peers essentially blindly.
+	Serialization/deserialization are left to the clients.
+
+	Authentication is on the roadmap, but not implemented yet.
+
+	The point of this server is to facilitate high throughput for data-intensive VR multiplayer, and very little else.
+
+	Author: Ezra Stallings
+*/
+
 #include <string>
 #include <vector>
-#include <time.h>
+#include <thread>
+#include <mutex>
+#include <pthread.h>
 
 #include "Net.h"
 #include "Model.h"
@@ -10,50 +23,65 @@
 using namespace std;
 using namespace net;
 
-#define TIMEOUT_TICKS 100000000
+// Haven't calibrated this yet - timeout can't be properly set until tick rate of server is well-understood.
+#define TIMEOUT_TICKS 10000000
+
+// Lock to keep the address list from getting changed at the wrong moment.
+std::mutex addresses_mutex;
+
+// The current client list.
 vector<Address> addresses;
+
+//The current world state of the game.
 Model model = Model();
 
 int packetsSent = 0;
 int packetsRecv = 0;
 
-void doReceiving(Socket socket){
-	while ( true )
-	{
+void doReceiving(Socket socket) {
+	assert(socket.isOpen());
+
+	while (1) {
 		Address sender;
 		unsigned char buffer[256];
-		int bytes_read = socket.receive( sender, buffer, sizeof( buffer ) );
+		int bytes_read = socket.receive(sender, buffer, sizeof(buffer));
 		bool newSender = false;
-		if ( !bytes_read )
-			break;
+		if (!bytes_read) 
+			continue;
 
-		string message(reinterpret_cast<char*>(buffer));
-		// cout << "Msg " << message << endl;
+		//Just in case the size changes on us...
+		addresses_mutex.lock();
+		int numAddresses = (int)addresses.size();
 
+		//Don't need mutex (I think) because this is read-only
 		if(std::find(addresses.begin(), addresses.end(), sender) != addresses.end()) {
-			/* v contains x */
-			for( int j = 0; j < (int) addresses.size(); ++j) {
-				if(addresses[j] == sender){
+			for(int j = 0; j < numAddresses; ++j) {
+				if(addresses[j] == sender) {
 					sender = addresses[j];
 					break;
 				}
 			}
-		} else {
-			/* v does not contain x */
+		}
+		else {
 			newSender = true;
 		}
+		addresses_mutex.unlock();
 		
-		// printf( "received packet from %d.%d.%d.%d:%d (%d bytes)\n", sender.getA(), sender.getB(), sender.getC(), sender.getD(), sender.getPort(), bytes_read );
 		int newId, theirId;
 		unsigned char sendBack[255];
+		addresses_mutex.lock();
 		sender.resetTimeout();
+		addresses_mutex.unlock();
 
-		switch(buffer[0]){
+		// Process incoming messages based on first byte
+		switch(buffer[0]) {
 			case 'a': // a - handshake signal from client
 				// printf("Recieved Handshake Signal From Client\n");
 				if(newSender) {
-					cout << "Discovered peer! " << message << "\n";
+					printf("Discovered Peer! \n");
+					addresses_mutex.lock();
 					addresses.push_back(sender);
+					addresses_mutex.unlock();
 					sendBack[0] = 'b';
 					socket.send(sender, sendBack, sizeof(sendBack));
 				}
@@ -69,7 +97,9 @@ void doReceiving(Socket socket){
 				break;
 			case 'e': // e - disconnected from server
 				// printf("Client Disconnected\n");
+				addresses_mutex.lock();
 				sender.maxTimeout();
+				addresses_mutex.unlock();
 				break;
 			case 'i': // i - initialize global object
 							// Object exists for all people. This will only happen during boot-up sequence.
@@ -97,7 +127,7 @@ void doReceiving(Socket socket){
 				break;
 			case 'm': // m - object update Client-To-Server
 				// printf("Object Update\n");
-				packetsRecv++;
+				packetsRecv++; 
 				model.sendUpdate(buffer, sender.getAddress());
 				break;
 			case 'n': // n - object update Server-To-Client
@@ -111,39 +141,36 @@ void doReceiving(Socket socket){
 	}
 }
 
-void doSending(Socket socket){
-	while ( true )
-	{
-		clock_t t;
-  		t = clock();
-  
+void doSending(Socket socket) {
+	assert(socket.isOpen());
+
+	while (1) {
 		map<int, StateObject> stateObjects = model.getStateObjects();
 		vector<int> idsToUpdate = model.getUpdatedIds();
 		vector<Address> nextAddresses;
 
-		for ( int i = 0; i < (int) addresses.size(); ++i ){
+		//Just in case the size changes on us...
+		addresses_mutex.lock();
+		int numAddresses = (int)addresses.size();
+
+		for (int i = 0; i < numAddresses; ++i) {
 			
 			if(addresses[i].getTimeout() > TIMEOUT_TICKS) {
 				printf("Disconnecting Peer %d\n", i);
 				unsigned char data[] = {'d'};
-				socket.send( addresses[i], data, 1);
+				socket.send(addresses[i], data, 1);
 				continue;
 			}
 
-			// printf("Sending data to peer %d t=%d\n", i, addresses[i].getTimeout());
-
 			int ip = addresses[i].getAddress();
-			for( int j = 0; j < (int) idsToUpdate.size(); ++j){
+			for(int j = 0; j < (int) idsToUpdate.size(); ++j) {
 				int id = idsToUpdate[j];
 
 				if(stateObjects.find(id) != stateObjects.end()) {
-					// Object found. Check timestamp
-					// printf("%d vs %d, tu=%d\n", stateObjects[id].lastUpdatedIP, ip, stateObjects[id].timesUpdated);
 					if(stateObjects[id].lastUpdatedIP == ip) continue;
-					// printf("   Sending Packet...\n");
 					packetsSent++;
 					stateObjects[id].data[0] = (unsigned char)'n';
-					socket.send( addresses[i], stateObjects[id].data, OBJ_PACK_LENGTH);
+					socket.send(addresses[i], stateObjects[id].data, OBJ_PACK_LENGTH);
 				}
 			}
 			
@@ -151,51 +178,37 @@ void doSending(Socket socket){
 			nextAddresses.push_back(addresses[i]);
 		}
 		addresses = nextAddresses;
+		addresses_mutex.unlock();
+
 		model.resetIdsToUpdate();
 		
-		doReceiving(socket);
-
-		t = clock() - t;
-		float timePassed = ((float)t)/CLOCKS_PER_SEC;
-		printf("Packets: S:%d\t\tR:%d\n", packetsSent, packetsRecv);
-  		// printf ("(%f seconds).\n",timePassed);
-
-		wait( 0.015f - timePassed );
+		// Lock at ~60fps
+		usleep(16666);
 	}
 }
-int main( int argc, char * argv[] )
-{
-	// initialize socket layer
 
-	if ( !initializeSockets() )
-	{
-		printf( "failed to initialize sockets\n" );
-		return 1;
-	}
+// Launch with first arg as port number, otherwise it uses 30000
+int main(int argc, char * argv[]) {
 	
 	// create socket
-
 	int port = 30000;
 
-	if ( argc == 2 )
-		port = atoi( argv[1] );
+	if (argc == 2)
+		port = atoi(argv[1]);
 
-	printf( "creating socket on port %d\n", port );
+	printf("Initializing on port: %d\n", port);
 
 	Socket socket;
-	if ( !socket.open( port ) )
-	{
-		printf( "failed to create socket!\n" );
+	if (!socket.open(port)) {
+		printf("Failed to open socket\n");
 		return 1;
 	}
-
-
+	
 	// send and receive packets until the user ctrl-breaks...
-	doSending(socket);
-	
-	// shutdown socket layer
-	
-	shutdownSockets();
+	std::thread sendThread (doSending, socket);
+	std::thread recvThread (doReceiving, socket);
+	sendThread.join();
+	recvThread.join();
 
 	return 0;
 }

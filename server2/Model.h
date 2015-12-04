@@ -1,13 +1,19 @@
+#ifndef MODEL_H
+#define MODEL_H
+
 #include <vector>
 #include <map>
+#include <mutex>
 
 using namespace std;
 
 #define OBJ_PACK_LENGTH 255
 
-int SOID = 0;
+std::mutex model_mutex;
+
 
 // Responsible for keeping the object state for a single object in our 'world' model
+int SOID = 0; // Bookkeeping variable;
 class StateObject {
 public:
 	int lastUpdatedTimestamp;
@@ -35,27 +41,26 @@ public:
 		lastUpdatedTimestamp = timestamp;
 		lastUpdatedIP = ip;
 		timesUpdated++;
-		// printf("Set ip: %d, tu: %d\n", lastUpdatedIP, timesUpdated);
 	}
 
-	bool operator < ( const StateObject & other ) const
-	{
+	// Needed to store objects in STL maps correctly.
+	bool operator < ( const StateObject & other ) const {
 		return objectID < other.objectID;
 	}
 };
 
 // Maintains all the StateObjects that our 'world' model must contain
+int modelid = 0; // Bookkeeping variable
 class Model {
-private:
-	map<int, StateObject> stateObjects;
-	vector<int> updatedIds;
 public:
-	
-	vector<int> getUpdatedIds(){
+	Model() {
+		id = modelid++;
+	}
+	vector<int> getUpdatedIds() {
 		return updatedIds;
 	}
 
-	map<int, StateObject> getStateObjects(){
+	map<int, StateObject> getStateObjects() {
 		return stateObjects;
 	}
 
@@ -68,15 +73,18 @@ public:
 			printf("Object not found in model");
 			return;
 		}
-		// printf("comparing %d < %d\n", stateObjects[id].lastUpdatedTimestamp, timestamp);
-		//If the update is more recent than the last update...
-		// if(stateObjects[id].lastUpdatedTimestamp <= timestamp){
+
+		//If the update is more recent than the last update...		
+		if(stateObjects[id].lastUpdatedTimestamp > 250) printf("Old TS: %d, new TS: %d\n", stateObjects[id].lastUpdatedTimestamp, timestamp);
+		if((stateObjects[id].lastUpdatedTimestamp <= timestamp)|| (stateObjects[id].lastUpdatedTimestamp > 250 && timestamp < 5)){
 			// printf("Updating Object: id: %d, t: %d, ip:%d\n", id, timestamp, ip);
 			stateObjects[id].update(timestamp, ip, newData);
-			if(std::find(updatedIds.begin(), updatedIds.end(), stateObjects[id].objectID) == updatedIds.end())
+			if(std::find(updatedIds.begin(), updatedIds.end(), stateObjects[id].objectID) == updatedIds.end()){
+				model_mutex.lock();
 				updatedIds.push_back(stateObjects[id].objectID);
-			// printf("   IP after update: %d\n", stateObjects[id].lastUpdatedIP);
-		// }
+				model_mutex.unlock();
+			}
+		}
 	}
 
 	// Initialize a global object - something that comes with the scene.
@@ -92,12 +100,10 @@ public:
 		stateObjects[id] = StateObject();
 		stateObjects[id].objectID = id;
 
-		// printf("ID / IP / TU after init: %d / %d / %d\n", id, stateObjects[id].lastUpdatedIP, stateObjects[id].timesUpdated);
-		
 		//Need to give the actual data to the object.
 		stateObjects[id].update(timestamp, ip, newData);
 
-		// Since all global objects have same starting conditions, we can just skip updating other users
+		// Since all global objects (we trust) have same starting conditions, we can just skip updating other users
 	}
 
 	// Initialize a local object - something that one of the clients made that needs to be initialized on other clients
@@ -115,15 +121,27 @@ public:
 		stateObject.update(timestamp, ip, newData);
 
 		//We do need to update because other users don't have this object
-		if(std::find(updatedIds.begin(), updatedIds.end(), stateObjects[id].objectID) == updatedIds.end())
+		if(std::find(updatedIds.begin(), updatedIds.end(), stateObjects[id].objectID) == updatedIds.end()){
+			model_mutex.lock();
 			updatedIds.push_back(id);
-		
+			model_mutex.unlock();
+		}
+
 		return id;
 	}
 
+	// Clear out the updatedIDs field.
 	void resetIdsToUpdate() {
 		vector<int> cleared;
+		model_mutex.lock();
 		updatedIds = cleared;
+		model_mutex.unlock();
 	}
 
+private:
+	map<int, StateObject> stateObjects;
+	vector<int> updatedIds;
+	int id;
 };
+
+#endif

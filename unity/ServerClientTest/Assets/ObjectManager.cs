@@ -58,7 +58,7 @@ class ObjectWrapper {
 		lastRot = rotD;
 		timestamp = ts;
 		// Debug.Log("Const");
-		Debug.Log(posD.x);
+		// Debug.Log(posD.x);
 		// Debug.Log((posD == lastPos) + " and " + (rotD == lastRot));
 	}
 }
@@ -137,7 +137,16 @@ public class ObjectManager : MonoBehaviour {
 	}
 
 	public void RecieveId(byte[] packet) {
-
+		int newid = System.BitConverter.ToInt32(packet, 1);
+		int oldid = System.BitConverter.ToInt32(packet, 5);
+		
+		ObjectWrapper ow = objectWrappersWithLocalID[oldid];
+		if(ow != null){
+			objectWrappersWithGlobalID.Add(newid, ow);
+			objectWrappersWithLocalID.Remove(oldid);
+		}
+		
+		client.packetsProcessed++;
 	}
 
 	public void AddNewItem(Transform t) {

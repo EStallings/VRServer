@@ -1,309 +1,161 @@
-/*
-	Simple Network Library from "Networking for Game Programmers"
-	http://www.gaffer.org/networking-for-game-programmers
-	Author: Glenn Fiedler <gaffer@gaffer.org>
-*/
 
 #ifndef NET_H
 #define NET_H
 
-// platform detection
-
-#define PLATFORM_WINDOWS  1
-#define PLATFORM_MAC      2
-#define PLATFORM_UNIX     3
-
-#if defined(_WIN32)
-#define PLATFORM PLATFORM_WINDOWS
-#elif defined(__APPLE__)
-#define PLATFORM PLATFORM_MAC
-#else
-#define PLATFORM PLATFORM_UNIX
-#endif
-
-#if PLATFORM == PLATFORM_WINDOWS
-
-	#include <winsock2.h>
-	#pragma comment( lib, "wsock32.lib" )
-
-#elif PLATFORM == PLATFORM_MAC || PLATFORM == PLATFORM_UNIX
-
-	#include <sys/socket.h>
-	#include <netinet/in.h>
-	#include <fcntl.h>
-
-#else
-
-	#error unknown platform!
-
-#endif
-
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <fcntl.h>
 #include <assert.h>
+#include <unistd.h>
 
-namespace net
-{
-	// platform independent wait for n seconds
+namespace net {
 
-#if PLATFORM == PLATFORM_WINDOWS
-
-	void wait( float seconds )
-	{
-		Sleep( (int) ( seconds * 1000.0f ) );
-	}
-
-#else
-
-	#include <unistd.h>
-	void wait( float seconds ) { usleep( (int) ( seconds * 1000000.0f ) ); }
-
-#endif
-
-	// internet address
-
-	class Address
-	{
+	// IP address
+	class Address {
 	public:
 		
-		Address()
-		{
+		Address() {
 			address = 0;
 			port = 0;
 			timeout = 0;
 		}
 	
-		Address( unsigned char a, unsigned char b, unsigned char c, unsigned char d, unsigned short port )
-		{
-			this->address = ( a << 24 ) | ( b << 16 ) | ( c << 8 ) | d;
-			this->port = port;
-			this->timeout = 0;
-		}
-	
-		Address( unsigned int address, unsigned short port )
-		{
+		Address(unsigned int address, unsigned short port) {
 			this->address = address;
 			this->port = port;
 			this->timeout = 0;
 		}
 	
-		unsigned int getAddress() const
-		{
+		unsigned int getAddress() const {
 			return address;
 		}
 	
-		unsigned char getA() const
-		{
-			return ( unsigned char ) ( address >> 24 );
-		}
-	
-		unsigned char getB() const
-		{
-			return ( unsigned char ) ( address >> 16 );
-		}
-	
-		unsigned char getC() const
-		{
-			return ( unsigned char ) ( address >> 8 );
-		}
-	
-		unsigned char getD() const
-		{
-			return ( unsigned char ) ( address );
-		}
-	
-		unsigned short getPort() const
-		{ 
+		unsigned short getPort() const { 
 			return port;
 		}
 
-		unsigned int getTimeout() const
-		{
+		unsigned int getTimeout() const {
 			return timeout;
 		}
 
-		void incTimeout()
-		{
+		void incTimeout() {
 			timeout++;
 		}
 
-		void maxTimeout()
-		{
-			timeout=999999;
+		void maxTimeout() {
+			timeout = 999999;
 		}
 
-		void resetTimeout()
-		{
+		void resetTimeout() {
 			timeout = 0;
 		}
 	
-		bool operator == ( const Address & other ) const
-		{
+		// Need these to ensure we can store Addresses in STL containers
+		bool operator == (const Address & other) const {
 			return address == other.address && port == other.port;
 		}
 	
-		bool operator != ( const Address & other ) const
-		{
-			return ! ( *this == other );
+		bool operator != (const Address & other) const {
+			return ! (*this == other);
 		}
 	
 	private:
-	
+		unsigned int timeout;
 		unsigned int address;
 		unsigned short port;
-		unsigned int timeout;
 	};
 
 	// sockets
-
-	inline bool initializeSockets()
-	{
-		#if PLATFORM == PLATFORM_WINDOWS
-	    WSADATA WsaData;
-		return WSAStartup( MAKEWORD(2,2), &WsaData ) != NO_ERROR;
-		#else
-		return true;
-		#endif
-	}
-
-	inline void shutdownSockets()
-	{
-		#if PLATFORM == PLATFORM_WINDOWS
-		WSACleanup();
-		#endif
-	}
-
-	int sockid = 0;
-	class Socket
-	{
+	class Socket {
 	public:
 	
-		Socket()
-		{
-			id = sockid++;
+		Socket() {
 			socket = 0;
 		}
 	
-		// ~Socket()
-		// {
-		// 	printf("Socket destroyed!\n");
-		// 	closeSocket();
-		// }
-	
-		bool open( unsigned short port )
-		{
-			assert( !isOpen() );
+		bool open(unsigned short port) {
+			assert(!isOpen());
 		
 			// create socket
+			socket = ::socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
-			socket = ::socket( AF_INET, SOCK_DGRAM, IPPROTO_UDP );
-
-			if ( socket <= 0 )
-			{
-				printf( "failed to create socket\n" );
+			if (socket <= 0) {
+				printf("failed to create socket\n");
 				socket = 0;
 				return false;
 			}
 
 			// bind to port
-
 			sockaddr_in address;
 			address.sin_family = AF_INET;
 			address.sin_addr.s_addr = INADDR_ANY;
-			address.sin_port = htons( (unsigned short) port );
+			address.sin_port = htons((unsigned short) port);
 		
-			if ( bind( socket, (const sockaddr*) &address, sizeof(sockaddr_in) ) < 0 )
-			{
-				printf( "failed to bind socket\n" );
+			if (bind(socket, (const sockaddr*) &address, sizeof(sockaddr_in)) < 0) {
+				printf("failed to bind socket\n");
 				closeSocket();
 				return false;
 			}
 
 			// set non-blocking io
+			int nonBlocking = 1;
+			if (fcntl(socket, F_SETFL, O_NONBLOCK, nonBlocking) == -1) {
+				printf("failed to set non-blocking socket\n");
+				closeSocket();
+				return false;
+			}
 
-			#if PLATFORM == PLATFORM_MAC || PLATFORM == PLATFORM_UNIX
-		
-				int nonBlocking = 1;
-				if ( fcntl( socket, F_SETFL, O_NONBLOCK, nonBlocking ) == -1 )
-				{
-					printf( "failed to set non-blocking socket\n" );
-					closeSocket();
-					return false;
-				}
-			
-			#elif PLATFORM == PLATFORM_WINDOWS
-		
-				DWORD nonBlocking = 1;
-				if ( ioctlsocket( socket, FIONBIO, &nonBlocking ) != 0 )
-				{
-					printf( "failed to set non-blocking socket\n" );
-					closeSocket();
-					return false;
-				}
-
-			#endif
-		
 			return true;
 		}
 	
-		void closeSocket()
-		{
-			if ( socket != 0 )
-			{
-				#if PLATFORM == PLATFORM_MAC || PLATFORM == PLATFORM_UNIX
-				close( socket );
-				#elif PLATFORM == PLATFORM_WINDOWS
-				closesocket( socket );
-				#endif
+		void closeSocket() {
+			if (socket != 0) {
+				close(socket);
 				socket = 0;
 			}
 		}
 	
-		bool isOpen() const
-		{
+		bool isOpen() const {
 			return socket != 0;
 		}
 	
-		bool send( const Address & destination, const void * data, int size )
-		{
-			assert( data );
-			assert( size > 0 );
+		bool send(const Address & destination, const void * data, int size) {
+			assert(data);
+			assert(size > 0);
 		
-			if ( socket == 0 )
+			if (socket == 0)
 				return false;
 		
 			sockaddr_in address;
 			address.sin_family = AF_INET;
-			address.sin_addr.s_addr = htonl( destination.getAddress() );
-			address.sin_port = htons( (unsigned short) destination.getPort() );
+			address.sin_addr.s_addr = htonl(destination.getAddress());
+			address.sin_port = htons((unsigned short) destination.getPort());
 
-			int sent_bytes = sendto( socket, (const char*)data, size, 0, (sockaddr*)&address, sizeof(sockaddr_in) );
+			int sent_bytes = sendto(socket, (const char*)data, size, 0, (sockaddr*)&address, sizeof(sockaddr_in));
 
 			return sent_bytes == size;
 		}
 	
-		int receive( Address & sender, void * data, int size )
-		{
-			assert( data );
-			assert( size > 0 );
+		int receive(Address & sender, void * data, int size) {
+			assert(data);
+			assert(size > 0);
 		
-			if ( socket == 0 )
+			if (socket == 0)
 				return false;
 			
-			#if PLATFORM == PLATFORM_WINDOWS
-			typedef int socklen_t;
-			#endif
 			
 			sockaddr_in from;
-			socklen_t fromLength = sizeof( from );
+			socklen_t fromLength = sizeof(from);
 
-			int received_bytes = recvfrom( socket, (char*)data, size, 0, (sockaddr*)&from, &fromLength );
+			int received_bytes = recvfrom(socket, (char*)data, size, 0, (sockaddr*)&from, &fromLength);
 
-			if ( received_bytes <= 0 )
+			if (received_bytes <= 0)
 				return 0;
 
-			unsigned int address = ntohl( from.sin_addr.s_addr );
-			unsigned int port = ntohs( from.sin_port );
+			unsigned int address = ntohl(from.sin_addr.s_addr);
+			unsigned int port = ntohs(from.sin_port);
 
-			sender = Address( address, port );
+			sender = Address(address, port);
 
 			return received_bytes;
 		}
