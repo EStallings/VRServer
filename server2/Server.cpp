@@ -163,6 +163,7 @@ void doSending(Socket socket) {
 			}
 
 			int ip = addresses[i].getAddress();
+			printf("Number of objects to update: %d\n", (int) idsToUpdate.size());
 			for(int j = 0; j < (int) idsToUpdate.size(); ++j) {
 				int id = idsToUpdate[j];
 

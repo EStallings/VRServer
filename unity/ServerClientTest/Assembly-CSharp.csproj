@@ -48,6 +48,7 @@
      <Compile Include="Assets\Extensions.cs" />
      <Compile Include="Assets\ObjectManager.cs" />
      <Compile Include="Assets\SerializationSurrogates.cs" />
+     <Compile Include="Assets\Wiggler.cs" />
      <Compile Include="Assets\client2.cs" />
  <Reference Include="UnityEngine.Networking">
  <HintPath>/Applications/Unity/Unity.app/Contents/UnityExtensions/Unity/Networking/UnityEngine.Networking.dll</HintPath>
